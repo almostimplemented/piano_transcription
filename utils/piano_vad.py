@@ -29,6 +29,11 @@ def note_detection_with_onset_offset_regress(frame_output, onset_output,
     frame_disappear = None
     offset_occur = None
 
+    offset_by_offset = 0
+    offset_by_frame = 0
+    offset_by_frame_no_offset = 0
+    offset_by_max_duration = 0
+
     for i in range(onset_output.shape[0]):
         if onset_output[i] == 1:
             """Onset detected"""
@@ -55,9 +60,16 @@ def note_detection_with_onset_offset_regress(frame_output, onset_output,
                 if offset_occur and offset_occur - bgn > frame_disappear - offset_occur:
                     """bgn --------- offset_occur --- frame_disappear"""
                     fin = offset_occur
+                    offset_by_offset += 1
                 else:
-                    """bgn --- offset_occur --------- frame_disappear"""
+                    """    bgn --- offset_occur --------- frame_disappear"""
+                    """OR: bgn -------------------------- frame_disappear"""
                     fin = frame_disappear
+                    if offset_occur:
+                        offset_by_frame += 1
+                    else:
+                        offset_by_frame_no_offset += 1
+                       
                 output_tuples.append([bgn, fin, onset_shift_output[bgn], 
                     offset_shift_output[fin], velocity_output[bgn]])
                 bgn, frame_disappear, offset_occur = None, None, None
@@ -65,6 +77,7 @@ def note_detection_with_onset_offset_regress(frame_output, onset_output,
             if bgn and (i - bgn >= 600 or i == onset_output.shape[0] - 1):
                 """Offset not detected"""
                 fin = i
+                offset_by_max_duration += 1
                 output_tuples.append([bgn, fin, onset_shift_output[bgn], 
                     offset_shift_output[fin], velocity_output[bgn]])
                 bgn, frame_disappear, offset_occur = None, None, None
@@ -72,7 +85,14 @@ def note_detection_with_onset_offset_regress(frame_output, onset_output,
     # Sort pairs by onsets
     output_tuples.sort(key=lambda pair: pair[0])
 
-    return output_tuples
+    stats_dict = {
+        'offset_by_offset':offset_by_offset,
+        'offset_by_frame':offset_by_frame,
+        'offset_by_frame_no_offset':offset_by_frame_no_offset, 
+        'offset_by_max_duration':offset_by_max_duration,
+    }
+
+    return output_tuples, stats_dict
 
 
 def pedal_detection_with_onset_offset_regress(frame_output, offset_output, 

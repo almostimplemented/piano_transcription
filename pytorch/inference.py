@@ -120,7 +120,7 @@ class PianoTranscription(object):
                 self.classes_num)
 
         # Post process output_dict to MIDI events
-        (est_note_events, est_pedal_events) = \
+        (est_note_events, est_pedal_events, stats_dict) = \
             post_processor.output_dict_to_midi_events(output_dict)
 
         # Write MIDI events to file
@@ -132,7 +132,8 @@ class PianoTranscription(object):
         transcribed_dict = {
             'output_dict': output_dict, 
             'est_note_events': est_note_events,
-            'est_pedal_events': est_pedal_events}
+            'est_pedal_events': est_pedal_events,
+            'stats_dict': stats_dict}
 
         return transcribed_dict
 

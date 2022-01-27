@@ -744,7 +744,7 @@ class RegressionPostProcessor(object):
         """
 
         # Post process piano note outputs to piano note and pedal events information
-        (est_on_off_note_vels, est_pedal_on_offs) = \
+        (est_on_off_note_vels, est_pedal_on_offs, stats_dict) = \
             self.output_dict_to_note_pedal_arrays(output_dict)
         """est_on_off_note_vels: (events_num, 4), the four columns are: [onset_time, offset_time, piano_note, velocity], 
         est_pedal_on_offs: (pedal_events_num, 2), the two columns are: [onset_time, offset_time]"""
@@ -757,7 +757,7 @@ class RegressionPostProcessor(object):
         else:
             est_pedal_events = self.detected_pedals_to_events(est_pedal_on_offs)
 
-        return est_note_events, est_pedal_events
+        return est_note_events, est_pedal_events, stats_dict
 
     def output_dict_to_note_pedal_arrays(self, output_dict):
         """Postprocess the output probabilities of a transription model to MIDI 
@@ -825,7 +825,7 @@ class RegressionPostProcessor(object):
 
         # ------ 2. Process matrices results to event results ------
         # Detect piano notes from output_dict
-        est_on_off_note_vels = self.output_dict_to_detected_notes(output_dict)
+        est_on_off_note_vels, stats_dict = self.output_dict_to_detected_notes(output_dict)
 
         if 'reg_pedal_onset_output' in output_dict.keys():
             # Detect piano pedals from output_dict
@@ -834,7 +834,7 @@ class RegressionPostProcessor(object):
         else:
             est_pedal_on_offs = None    
 
-        return est_on_off_note_vels, est_pedal_on_offs
+        return est_on_off_note_vels, est_pedal_on_offs, stats_dict
 
     def get_binarized_output_from_regression(self, reg_output, threshold, neighbour):
         """Calculate binarized output and shifts of onsets or offsets from the
@@ -913,10 +913,16 @@ class RegressionPostProcessor(object):
         est_tuples = []
         est_midi_notes = []
         classes_num = output_dict['frame_output'].shape[-1]
+        stats_dict = {
+            'offset_by_offset':0,
+            'offset_by_frame':0,
+            'offset_by_frame_no_offset':0, 
+            'offset_by_max_duration':0,
+        }
  
         for piano_note in range(classes_num):
             """Detect piano notes"""
-            est_tuples_per_note = note_detection_with_onset_offset_regress(
+            est_tuples_per_note, stats_dict_per_note = note_detection_with_onset_offset_regress(
                 frame_output=output_dict['frame_output'][:, piano_note], 
                 onset_output=output_dict['onset_output'][:, piano_note], 
                 onset_shift_output=output_dict['onset_shift_output'][:, piano_note], 
@@ -927,6 +933,8 @@ class RegressionPostProcessor(object):
             
             est_tuples += est_tuples_per_note
             est_midi_notes += [piano_note + self.begin_note] * len(est_tuples_per_note)
+            for k, v in stats_dict_per_note.items():
+                stats_dict[k] += v
 
         est_tuples = np.array(est_tuples)   # (notes, 5)
         """(notes, 5), the five columns are onset, offset, onset_shift, 
@@ -943,7 +951,7 @@ class RegressionPostProcessor(object):
 
         est_on_off_note_vels = est_on_off_note_vels.astype(np.float32)
 
-        return est_on_off_note_vels
+        return est_on_off_note_vels, stats_dict
 
     def output_dict_to_detected_pedals(self, output_dict):
         """Postprocess output_dict to piano pedals.
@@ -1123,7 +1131,7 @@ class OnsetsFramesPostProcessor(object):
             offset_threshold=self.offset_threshold)
 
         # Post process output_dict to piano notes
-        est_on_off_note_vels = self.output_dict_to_detected_notes(output_dict, 
+        est_on_off_note_vels, stats_dict = self.output_dict_to_detected_notes(output_dict, 
             frame_threshold=self.frame_threshold)
 
         if 'reg_pedal_onset_output' in output_dict.keys():
@@ -1133,7 +1141,7 @@ class OnsetsFramesPostProcessor(object):
         else:
             est_pedal_on_offs = None    
 
-        return est_on_off_note_vels, est_pedal_on_offs
+        return est_on_off_note_vels, est_pedal_on_offs, stats_dict
 
     def sharp_output_dict(self, output_dict, onset_threshold, offset_threshold):
         """Sharp onsets and offsets. E.g. when threshold=0.3, for a note, 

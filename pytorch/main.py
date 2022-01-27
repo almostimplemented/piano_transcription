@@ -40,7 +40,7 @@ def train(args):
       reduce_iteration: int
       resume_iteration: int
       early_stop: int
-      device: 'cuda' | 'cpu'
+      cuda: bool
       mini_data: bool
     """
 
